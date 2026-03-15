@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CET-6/GRE Vocabulary Battle (Concrete Edition)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, updateDoc, getDoc, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // 获取环境提供的配置
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'cet6-codenames-concrete';
+
+        // --- 核心词库 (精选实意词与高频名词) ---
+        const wordPool = [
+            { en: "Apparatus", cn: "仪器/装置" }, { en: "Architecture", cn: "架构/建筑" },
+            { en: "Archive", cn: "档案/归档" }, { en: "Atmosphere", cn: "大气/氛围" },
+            { en: "Blueprint", cn: "蓝图/计划" }, { en: "Boundary", cn: "边界" },
+            { en: "Catastrophe", cn: "灾难" }, { en: "Cellular", cn: "细胞的" },
+            { en: "Chronicle", cn: "编年史/记录" }, { en: "Circuit", cn: "电路/回路" },
+            { en: "Colony", cn: "殖民地/群体" }, { en: "Component", cn: "组件" },
+            { en: "Compound", cn: "化合物" }, { en: "Configuration", cn: "配置/结构" },
+            { en: "Container", cn: "容器" }, { en: "Continent", cn: "大陆" },
+            { en: "Corridor", cn: "走廊" }, { en: "Cylinder", cn: "圆柱体" },
+            { en: "Database", cn: "数据库" }, { en: "Debris", cn: "残骸/碎片" },
+            { en: "Democracy", cn: "民主" }, { en: "Density", cn: "密度" },
+            { en: "Departure", cn: "离开" }, { en: "Deposit", cn: "存款/沉淀物" },
+            { en: "Device", cn: "设备" }, { en: "Diagnosis", cn: "诊断" },
+            { en: "Diameter", cn: "直径" }, { en: "Dimension", cn: "维度/尺寸" },
+            { en: "Disaster", cn: "灾难" }, { en: "Diversity", cn: "多样性" },
+            { en: "Dormitory", cn: "宿舍" }, { en: "Duration", cn: "持续时间" },
+            { en: "Ecology", cn: "生态学" }, { en: "Electrode", cn: "电极" },
+            { en: "Element", cn: "元素" }, { en: "Elevator", cn: "电梯" },
+            { en: "Emission", cn: "排放" }, { en: "Empire", cn: "帝国" },
+            { en: "Environment", cn: "环境" }, { en: "Epidemic", cn: "流行病" },
+            { en: "Equator", cn: "赤道" }, { en: "Equipment", cn: "设备" },
+            { en: "Erosion", cn: "侵蚀" }, { en: "Excursion", cn: "远足/短途旅行" },
+            { en: "Exhibit", cn: "展览品" }, { en: "Expedition", cn: "探险队" },
+            { en: "Expertise", cn: "专门知识" }, { en: "Exterior", cn: "外部" },
+            { en: "Fabric", cn: "织物/结构" }, { en: "Facility", cn: "设施" },
+            { en: "Faculty", cn: "全体教员/能力" }, { en: "Fertilizer", cn: "肥料" },
+            { en: "Fiber", cn: "纤维" }, { en: "Filament", cn: "灯丝" },
+            { en: "Formula", cn: "公式" }, { en: "Foundation", cn: "地基/基金会" },
+            { en: "Fraction", cn: "分数/碎片" }, { en: "Fragment", cn: "碎片" },
+            { en: "Friction", cn: "摩擦" }, { en: "Frontier", cn: "边界/前沿" },
+            { en: "Fuel", cn: "燃料" }, { en: "Function", cn: "功能/函数" },
+            { en: "Furnace", cn: "熔炉" }, { en: "Galaxy", cn: "银河" },
+            { en: "Garment", cn: "服装" }, { en: "Gene", cn: "基因" },
+            { en: "Geography", cn: "地理" }, { en: "Geometry", cn: "几何" },
+            { en: "Glacier", cn: "冰川" }, { en: "Governor", cn: "州长/调节器" },
+            { en: "Gradient", cn: "梯度" }, { en: "Gravity", cn: "重力" },
+            { en: "Habitat", cn: "栖息地" }, { en: "Harbor", cn: "港口" },
+            { en: "Hardware", cn: "硬件" }, { en: "Harvest", cn: "收获" },
+            { en: "Headquarters", cn: "总部" }, { en: "Hemisphere", cn: "半球" },
+            { en: "Heritage", cn: "遗产" }, { en: "Horizon", cn: "地平线" },
+            { en: "Hormone", cn: "荷尔蒙" }, { en: "Humidity", cn: "湿度" },
+            { en: "Hydrogen", cn: "氢气" }, { en: "Infrastructure", cn: "基础设施" },
+            { en: "Ingredient", cn: "原料" }, { en: "Inhabitant", cn: "居民" },
+            { en: "Injection", cn: "注射" }, { en: "Institution", cn: "机构" },
+            { en: "Instrument", cn: "仪器" }, { en: "Insulation", cn: "绝缘" },
+            { en: "Inventory", cn: "库存" }, { en: "Isotope", cn: "同位素" },
+            { en: "Journal", cn: "期刊" }, { en: "Junction", cn: "枢纽/连接点" },
+            { en: "Laboratory", cn: "实验室" }, { en: "Landscape", cn: "景观" },
+            { en: "Latitude", cn: "纬度" }, { en: "Launch", cn: "发射" },
+            { en: "Layer", cn: "层" }, { en: "Lecture", cn: "讲座" },
+            { en: "Legend", cn: "传说/图例" }, { en: "Legislature", cn: "立法机构" },
+            { en: "Lens", cn: "透镜/镜头" }, { en: "Locomotive", cn: "机车" },
+            { en: "Magnitude", cn: "巨大/震级" }, { en: "Mammal", cn: "哺乳动物" },
+            { en: "Manuscript", cn: "手稿" }, { en: "Measurement", cn: "测量" },
+            { en: "Mechanism", cn: "机制/机械装置" }, { en: "Membrane", cn: "膜" },
+            { en: "Merchant", cn: "商人" }, { en: "Metabolism", cn: "新陈代谢" },
+            { en: "Meteor", cn: "流星" }, { en: "Microscope", cn: "显微镜" },
+            { en: "Mineral", cn: "矿物" }, { en: "Missile", cn: "导弹" },
+            { en: "Mixture", cn: "混合物" }, { en: "Module", cn: "模块" },
+            { en: "Molecule", cn: "分子" }, { en: "Monument", cn: "纪念碑" },
+            { en: "Muscular", cn: "肌肉的" }, { en: "Navigation", cn: "导航" },
+            { en: "Network", cn: "网络" }, { en: "Neutron", cn: "中子" },
+            { en: "Nuclear", cn: "核能的" }, { en: "Nucleus", cn: "核/核心" },
+            { en: "Obstacle", cn: "障碍" }, { en: "Ocean", cn: "海洋" },
+            { en: "Orbit", cn: "轨道" }, { en: "Organism", cn: "生物体" },
+            { en: "Output", cn: "输出" }, { en: "Oxygen", cn: "氧气" },
+            { en: "Panel", cn: "面板" }, { en: "Particle", cn: "粒子" },
+            { en: "Patent", cn: "专利" }, { en: "Pathway", cn: "通路" },
+            { en: "Peak", cn: "山峰" }, { en: "Pedestrian", cn: "行人" },
+            { en: "Peninsula", cn: "半岛" }, { en: "Personnel", cn: "人员" },
+            { en: "Petition", cn: "请愿书" }, { en: "Petroleum", cn: "石油" },
+            { en: "Pharmacy", cn: "药房" }, { en: "Phenomenon", cn: "现象" },
+            { en: "Phonetic", cn: "语音的" }, { en: "Photosynthesis", cn: "光合作用" },
+            { en: "Physiology", cn: "生理学" }, { en: "Pigment", cn: "颜料" },
+            { en: "Pipeline", cn: "管道" }, { en: "Planet", cn: "行星" },
+            { en: "Plateau", cn: "高原" }, { en: "Platform", cn: "平台" },
+            { en: "Pollution", cn: "污染" }, { en: "Polymer", cn: "聚合物" },
+            { en: "Portfolio", cn: "作品集/投资组合" }, { en: "Portrait", cn: "肖像" },
+            { en: "Powerhouse", cn: "发电站/强国" }, { en: "Precision", cn: "精密" },
+            { en: "Precursor", cn: "先驱/前体" }, { en: "Prescription", cn: "处方" },
+            { en: "Pressure", cn: "压力" }, { en: "Primitive", cn: "原始的" },
+            { en: "Principle", cn: "原则" }, { en: "Procedure", cn: "程序/步骤" },
+            { en: "Processor", cn: "处理器" }, { en: "Profile", cn: "侧面/简介" },
+            { en: "Program", cn: "程序" }, { en: "Projector", cn: "投影仪" },
+            { en: "Propeller", cn: "螺旋桨" }, { en: "Protein", cn: "蛋白质" },
+            { en: "Protocol", cn: "协议" }, { en: "Prototype", cn: "原型" },
+            { en: "Province", cn: "省份" }, { en: "Pulse", cn: "脉搏" },
+            { en: "Pyramid", cn: "金字塔" }, { en: "Quantity", cn: "数量" },
+            { en: "Quarry", cn: "采石场" }, { en: "Quota", cn: "配额" },
+            { en: "Radar", cn: "雷达" }, { en: "Radiation", cn: "辐射" },
+            { en: "Radius", cn: "半径" }, { en: "Railway", cn: "铁路" },
+            { en: "Ratio", cn: "比率" }, { en: "Reactor", cn: "反应堆" },
+            { en: "Receiver", cn: "接收器" }, { en: "Record", cn: "记录" },
+            { en: "Reference", cn: "参考文献" }, { en: "Region", cn: "区域" },
+            { en: "Regulator", cn: "调节器" }, { en: "Relief", cn: "浮雕/解脱" },
+            { en: "Remedy", cn: "补救/治疗" }, { en: "Remote", cn: "遥远的" },
+            { en: "Replica", cn: "复制品" }, { en: "Reservoir", cn: "水库" },
+            { en: "Resistance", cn: "电阻/抵抗" }, { en: "Resolution", cn: "分辨率/决议" },
+            { en: "Resource", cn: "资源" }, { en: "Response", cn: "响应" },
+            { en: "Revenue", cn: "营收" }, { en: "Route", cn: "航线/路线" },
+            { en: "Satellite", cn: "卫星" }, { en: "Scenario", cn: "剧本/方案" },
+            { en: "Scheme", cn: "方案" }, { en: "Script", cn: "脚本" },
+            { en: "Sector", cn: "扇区/部门" }, { en: "Sediment", cn: "沉积物" },
+            { en: "Segment", cn: "段/片段" }, { en: "Semiconductor", cn: "半导体" },
+            { en: "Senator", cn: "参议员" }, { en: "Sequence", cn: "序列" },
+            { en: "Session", cn: "会议" }, { en: "Shadow", cn: "影子" },
+            { en: "Signal", cn: "信号" }, { en: "Signature", cn: "签名" },
+            { en: "Sketch", cn: "草图" }, { en: "Slogan", cn: "口号" },
+            { en: "Software", cn: "软件" }, { en: "Solar", cn: "太阳能的" },
+            { en: "Solution", cn: "溶液/解法" }, { en: "Source", cn: "来源" },
+            { en: "Species", cn: "物种" }, { en: "Specimen", cn: "标本" },
+            { en: "Spectrum", cn: "光谱/范围" }, { en: "Sphere", cn: "球体" },
+            { en: "Sponsor", cn: "赞助商" }, { en: "Stadium", cn: "体育场" },
+            { en: "Statistics", cn: "统计" }, { en: "Statue", cn: "雕像" },
+            { en: "Status", cn: "状态" }, { en: "Stimulus", cn: "刺激" },
+            { en: "Structure", cn: "结构" }, { en: "Subject", cn: "学科/主题" },
+            { en: "Submarine", cn: "潜艇" }, { en: "Substance", cn: "物质" },
+            { en: "Summary", cn: "摘要" }, { en: "Summit", cn: "巅峰/峰会" },
+            { en: "Surface", cn: "表面" }, { en: "Surgery", cn: "外科手术" },
+            { en: "Survey", cn: "调查" }, { en: "Symptom", cn: "症状" },
+            { en: "Synthesis", cn: "合成" }, { en: "Target", cn: "目标" },
+            { en: "Technique", cn: "技术" }, { en: "Template", cn: "模板" },
+            { en: "Terminal", cn: "终端/终点" }, { en: "Terrain", cn: "地形" },
+            { en: "Territory", cn: "领土" }, { en: "Textile", cn: "纺织品" },
+            { en: "Theme", cn: "主题" }, { en: "Theorem", cn: "定理" },
+            { en: "Theory", cn: "理论" }, { en: "Threshold", cn: "阈值/门槛" },
+            { en: "Ticket", cn: "票据" }, { en: "Title", cn: "标题" },
+            { en: "Topic", cn: "话题" }, { en: "Tower", cn: "塔" },
+            { en: "Track", cn: "轨道" }, { en: "Traffic", cn: "交通" },
+            { en: "Trail", cn: "小径" }, { en: "Transaction", cn: "交易" },
+            { en: "Transfer", cn: "转移" }, { en: "Transit", cn: "运输" },
+            { en: "Transmission", cn: "传输" }, { en: "Transport", cn: "运输" },
+            { en: "Triangle", cn: "三角形" }, { en: "Trigger", cn: "扳机/触发" },
+            { en: "Trophy", cn: "奖杯" }, { en: "Tube", cn: "管子" },
+            { en: "Tunnel", cn: "隧道" }, { en: "Turbine", cn: "涡轮" }
+        ];
+
+        let gameState = {
+            cards: [],
+            currentTurn: 'red',
+            gameOver: false,
+            winner: null,
+            reason: ""
+        };
+        let isSpymaster = false;
+        let roomId = "default-room";
+        let currentUser = null;
+        let unsubscribeRoom = null;
+
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth failed:", error);
+            }
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) startRoomListener();
+        });
+
+        function startRoomListener() {
+            if (unsubscribeRoom) unsubscribeRoom();
+            const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            unsubscribeRoom = onSnapshot(roomDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    gameState = docSnap.data();
+                    renderBoard();
+                    updateUI();
+                } else if (isSpymaster) {
+                    createNewGame();
+                }
+            });
+        }
+
+        window.createNewGame = async () => {
+            if (!currentUser) return;
+            const shuffledWords = [...wordPool].sort(() => 0.5 - Math.random()).slice(0, 25);
+            let roles = [
+                ...Array(8).fill('red'),
+                ...Array(8).fill('blue'),
+                ...Array(8).fill('green'),
+                'black'
+            ].sort(() => 0.5 - Math.random());
+
+            const newCards = shuffledWords.map((wordObj, i) => ({
+                word: wordObj.en,
+                cn: wordObj.cn,
+                role: roles[i],
+                revealed: false
+            }));
+
+            const newState = {
+                cards: newCards,
+                currentTurn: 'red',
+                gameOver: false,
+                winner: null,
+                reason: ""
+            };
+
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId), newState);
+        };
+
+        window.handleCardClick = async (index) => {
+            if (!currentUser || gameState.gameOver || isSpymaster || gameState.cards[index].revealed) return;
+
+            const updatedCards = JSON.parse(JSON.stringify(gameState.cards));
+            const card = updatedCards[index];
+            card.revealed = true;
+
+            let nextTurn = gameState.currentTurn;
+            let gameOver = false;
+            let winner = null;
+            let reason = "";
+
+            if (card.role === 'black') {
+                gameOver = true;
+                winner = gameState.currentTurn === 'red' ? 'blue' : 'red';
+                reason = "点击了刺客词 (Assassin)！";
+            } else if (card.role === 'green') {
+                nextTurn = gameState.currentTurn === 'red' ? 'blue' : 'red';
+            } else if (card.role !== gameState.currentTurn) {
+                nextTurn = gameState.currentTurn === 'red' ? 'blue' : 'red';
+            }
+
+            const redLeft = updatedCards.filter(c => c.role === 'red' && !c.revealed).length;
+            const blueLeft = updatedCards.filter(c => c.role === 'blue' && !c.revealed).length;
+            if (redLeft === 0) { gameOver = true; winner = 'red'; reason = "红队找齐了所有单词！"; }
+            else if (blueLeft === 0) { gameOver = true; winner = 'blue'; reason = "蓝队找齐了所有单词！"; }
+
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId), {
+                cards: updatedCards, currentTurn: nextTurn, gameOver, winner, reason
+            });
+        };
+
+        window.endTurn = async () => {
+            if (!currentUser) return;
+            const nextTurn = gameState.currentTurn === 'red' ? 'blue' : 'red';
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId), { currentTurn: nextTurn });
+        };
+
+        function renderBoard() {
+            const grid = document.getElementById('gameGrid');
+            if (!grid) return;
+            grid.innerHTML = '';
+            
+            if (!gameState.cards || gameState.cards.length === 0) {
+                grid.innerHTML = '<div class="col-span-5 text-center p-10 text-slate-400">点击右上方重置对局...</div>';
+                return;
+            }
+
+            gameState.cards.forEach((card, index) => {
+                const div = document.createElement('div');
+                div.className = `card flex flex-col items-center justify-center rounded-lg shadow-sm font-bold text-center p-1 transition-all duration-300 border-2 select-none cursor-pointer overflow-hidden`;
+                
+                if (card.revealed || isSpymaster) {
+                    const roleColors = {
+                        red: 'bg-red-500 text-white border-transparent',
+                        blue: 'bg-blue-500 text-white border-transparent',
+                        green: 'bg-emerald-500 text-white border-transparent',
+                        black: 'bg-gray-800 text-white border-transparent'
+                    };
+                    div.className += ` ${roleColors[card.role]}`;
+                    if (card.revealed) div.className += ' ring-4 ring-yellow-400 ring-opacity-50';
+                } else {
+                    div.className += ' bg-white text-gray-800 border-gray-200 hover:border-indigo-400';
+                }
+
+                const enSpan = document.createElement('span');
+                enSpan.className = 'text-[10px] sm:text-xs md:text-sm uppercase tracking-tighter sm:tracking-wide leading-none text-center px-1';
+                enSpan.innerText = card.word;
+                div.appendChild(enSpan);
+
+                const cnSpan = document.createElement('span');
+                cnSpan.className = 'text-[9px] sm:text-[10px] opacity-75 font-normal mt-1 leading-none text-center';
+                cnSpan.innerText = card.cn || '';
+                div.appendChild(cnSpan);
+
+                div.onclick = () => window.handleCardClick(index);
+                grid.appendChild(div);
+            });
+        }
+
+        function updateUI() {
+            const turnEl = document.getElementById('currentTurnDisplay');
+            if (turnEl) {
+                turnEl.innerText = gameState.currentTurn === 'red' ? "红色组回合" : "蓝色组回合";
+                turnEl.className = `font-bold uppercase tracking-widest ${gameState.currentTurn === 'red' ? 'text-red-600' : 'text-blue-600'}`;
+            }
+
+            document.getElementById('redCount').innerText = gameState.cards.filter(c => c.role === 'red' && !c.revealed).length;
+            document.getElementById('blueCount').innerText = gameState.cards.filter(c => c.role === 'blue' && !c.revealed).length;
+
+            const msgBox = document.getElementById('msgBox');
+            if (gameState.gameOver) {
+                msgBox.innerHTML = `游戏结束！<br><span class="${gameState.winner === 'red' ? 'text-red-600' : 'text-blue-600'}">${gameState.winner.toUpperCase()} 队获胜！</span><br><span class="text-sm font-normal text-gray-500">${gameState.reason}</span>`;
+                msgBox.classList.remove('hidden');
+            } else {
+                msgBox.classList.add('hidden');
+            }
+        }
+
+        window.toggleIdentity = () => {
+            isSpymaster = !isSpymaster;
+            document.getElementById('idBtn').innerText = isSpymaster ? "模式：Operative" : "模式：Spymaster";
+            document.getElementById('roleBadge').innerText = isSpymaster ? "SPYMASTER" : "OPERATIVE";
+            renderBoard();
+        };
+
+        window.joinRoom = () => {
+            const input = document.getElementById('roomInput').value.trim();
+            if (input) {
+                roomId = input;
+                if (currentUser) startRoomListener();
+            }
+        };
+
+        initAuth();
+    </script>
+    <style>
+        .card { min-height: 75px; }
+        @media (max-width: 640px) { .card { min-height: 60px; } }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen p-2 sm:p-4 flex flex-col items-center font-sans text-slate-900">
+
+    <!-- 顶栏 -->
+    <div class="max-w-4xl w-full mb-4 flex flex-wrap gap-2 items-center justify-between bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
+        <div class="flex items-center gap-2">
+            <input id="roomInput" type="text" placeholder="房间ID" class="border border-slate-300 px-3 py-1 rounded-lg text-sm w-24 focus:ring-2 focus:ring-indigo-500 outline-none">
+            <button onclick="joinRoom()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm font-semibold hover:bg-indigo-700">进入</button>
+        </div>
+        <div id="roleBadge" class="text-[10px] font-black text-slate-400 px-3 py-1 bg-slate-50 rounded-full border border-slate-100 uppercase tracking-widest">OPERATIVE</div>
+        <div class="flex gap-2">
+            <button onclick="toggleIdentity()" id="idBtn" class="bg-slate-800 text-white px-3 py-1 rounded-lg text-sm font-semibold">模式：Spymaster</button>
+            <button onclick="createNewGame()" class="bg-emerald-600 text-white px-3 py-1 rounded-lg text-sm font-black">RESET</button>
+        </div>
+    </div>
+
+    <!-- 状态 -->
+    <div class="max-w-4xl w-full mb-4 grid grid-cols-3 gap-2 sm:gap-4">
+        <div class="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-center">
+            <span id="currentTurnDisplay" class="text-[10px] sm:text-xs font-bold text-slate-400">WAITING...</span>
+        </div>
+        <div class="bg-red-50 p-2 rounded-2xl border-b-4 border-red-500 flex flex-col items-center">
+            <span class="text-red-700 font-black text-[10px] uppercase">RED</span>
+            <span id="redCount" class="text-xl sm:text-2xl font-black text-red-600 leading-none">0</span>
+        </div>
+        <div class="bg-blue-50 p-2 rounded-2xl border-b-4 border-blue-500 flex flex-col items-center">
+            <span class="text-blue-700 font-black text-[10px] uppercase">BLUE</span>
+            <span id="blueCount" class="text-xl sm:text-2xl font-black text-blue-600 leading-none">0</span>
+        </div>
+    </div>
+
+    <!-- 网格 -->
+    <div id="gameGrid" class="grid grid-cols-5 gap-1 sm:gap-3 max-w-4xl w-full"></div>
+
+    <!-- 消息 -->
+    <div id="msgBox" class="mt-6 p-4 bg-white rounded-2xl shadow-xl text-center border-4 border-indigo-500 hidden animate-bounce z-10"></div>
+
+    <!-- 操作 -->
+    <div class="mt-6 flex flex-col items-center gap-2">
+        <button onclick="endTurn()" class="bg-amber-500 text-white px-8 py-2 rounded-full font-black shadow-lg hover:bg-amber-600 active:scale-95 text-xs uppercase tracking-widest">
+            End Turn
+        </button>
+        <p class="text-[9px] text-slate-400 uppercase font-bold tracking-tighter">Concrete Dictionary: Infrastructure, Science & Objects</p>
+    </div>
+
+</body>
+</html>
